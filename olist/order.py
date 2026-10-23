@@ -65,7 +65,16 @@ class Order:
         Returns a DataFrame with:
         order_id, dim_is_five_star, dim_is_one_star, review_score
         """
-        
+        reviews = self.data["order_reviews"].copy()
+        reviews["dim_is_one_star"] = reviews["review_score"].map(
+        lambda x: 1 if x == 1 else 0
+        )
+        reviews["dim_is_five_star"] = reviews["review_score"].map(
+            lambda x: 1 if x==5 else 0
+        )
+        # reviews["dim_is_five_star"] = (reviews["review_score"] == 5).astype(int)
+        # reviews["dim_is_one_star"] = (reviews["review_score"] == 1).astype(int)
+        return reviews[["order_id", "review_score","dim_is_five_star","dim_is_one_star"]]
 
     def get_number_items(self):
         """
