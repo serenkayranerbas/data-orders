@@ -71,9 +71,7 @@ class Order:
         )
         reviews["dim_is_five_star"] = reviews["review_score"].map(
             lambda x: 1 if x==5 else 0
-        )
-        # reviews["dim_is_five_star"] = (reviews["review_score"] == 5).astype(int)
-        # reviews["dim_is_one_star"] = (reviews["review_score"] == 1).astype(int)
+        )        
         return reviews[["order_id", "review_score","dim_is_five_star","dim_is_one_star"]]
 
     def get_number_items(self):
@@ -110,8 +108,107 @@ class Order:
         Returns a DataFrame with:
         order_id, distance_seller_customer
         """
-        pass  # YOUR CODE HERE
 
+
+    
+        geo = self.data["geolocation"].copy()
+        orders = self.data["orders"].copy()
+        order_items = self.data["order_items"].copy()
+        sellers = self.data["sellers"].copy()
+        customers = self.data["customers"].copy()
+
+        
+        geo = (
+            geo.groupby("geolocation_zip_code_prefix")[
+                ["geolocation_lat", "geolocation_lng"]
+            ]
+            .mean()
+            .reset_index()
+        )
+
+    
+        customer_geo = customers.merge(
+            geo,
+            left_on="customer_zip_code_prefix",
+            right_on="geolocation_zip_code_prefix",
+            how="left"
+        )
+
+        customer_geo = customer_geo.rename(
+            columns={
+                "geolocation_lat": "customer_lat",
+                "geolocation_lng": "customer_lng"
+            }
+        )
+
+    
+        seller_geo = sellers.merge(
+            geo,
+            left_on="seller_zip_code_prefix",
+            right_on="geolocation_zip_code_prefix",
+            how="left"
+        )
+
+        seller_geo = seller_geo.rename(
+            columns={
+                "geolocation_lat": "seller_lat",
+                "geolocation_lng": "seller_lng"
+            }
+        )
+
+        data = order_items.merge(
+            seller_geo[
+                ["seller_id", "seller_lat", "seller_lng"]
+            ],
+            on="seller_id",
+            how="left"
+        )
+
+        data = data.merge(
+            orders[["order_id", "customer_id"]],
+            on="order_id",
+            how="left"
+        )
+
+        data = data.merge(
+            customer_geo[
+                ["customer_id", "customer_lat", "customer_lng"]
+            ],
+            on="customer_id",
+            how="left"
+        )
+
+        lat1 = np.radians(data["customer_lat"])
+        lng1 = np.radians(data["customer_lng"])
+
+        lat2 = np.radians(data["seller_lat"])
+        lng2 = np.radians(data["seller_lng"])
+
+        dlat = lat2 - lat1
+        dlng = lng2 - lng1
+
+        a = (
+            np.sin(dlat / 2) ** 2
+            + np.cos(lat1)
+            * np.cos(lat2)
+            * np.sin(dlng / 2) ** 2
+        )
+
+        c = 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+        data["distance_seller_customer"] = 6371 * c
+
+        result = (
+            data.groupby("order_id")["distance_seller_customer"]
+            .mean()
+            .reset_index()
+        )
+
+        return result
+      
+
+        
+        
     def get_training_data(self,
                           is_delivered=True,
                           with_distance_seller_customer=False):
@@ -123,4 +220,16 @@ class Order:
         'distance_seller_customer']
         """
         # Hint: make sure to re-use your instance methods defined above
-        pass  # YOUR CODE HERE
+        orders = self.get_wait_time()
+        reviews = self.get_review_score()
+        items = self.get_number_items()
+        sellers = self.get_number_sellers()
+        prices = self.get_price_and_freight()
+        
+        training_data = orders.merge(reviews, on="order_id", how="left")
+        training_data = training_data.merge(prices, on="order_id", how = "left")
+        training_data = training_data.merge(items, on="order_id", how = "left")
+        training_data = training_data.merge(sellers, on="order_id", how = "left")
+        training_data = training_data.dropna()
+        
+        return training_data
