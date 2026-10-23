@@ -81,14 +81,19 @@ class Order:
         Returns a DataFrame with:
         order_id, number_of_items
         """
-        pass  # YOUR CODE HERE
-
+        
+        items = self.data["order_items"].copy()
+        items = items.groupby("order_id").size().reset_index(name="number_of_items")
+        return items[["number_of_items","order_id"]]
+    
     def get_number_sellers(self):
         """
         Returns a DataFrame with:
         order_id, number_of_sellers
         """
-        pass  # YOUR CODE HERE
+        sellers = self.data["order_items"].copy()
+        sellers = sellers.groupby("order_id")["seller_id"].nunique().reset_index(name="number_of_sellers")
+        return sellers[["number_of_sellers","order_id"]]
 
     def get_price_and_freight(self):
         """
